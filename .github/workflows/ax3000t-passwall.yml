@@ -1,0 +1,217 @@
+name: AX3000T PassWall Auto Build
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '即使上游没有更新也重新编译四种 AX3000T 固件'
+        type: boolean
+        default: false
+  push:
+    branches: [openwrt-21.02]
+    paths:
+      - '.github/workflows/ax3000t-passwall.yml'
+      - 'scripts/ci/**'
+      - 'scripts/setup-ax3000t-passwall.sh'
+      - 'config/ax3000t-passwall/**'
+      - 'feeds.conf.default'
+
+permissions:
+  contents: read
+
+# Keep a running build alive when another scheduled check is queued.
+concurrency:
+  group: ax3000t-passwall
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    if: github.repository == 'JIANCXG/hanwckf'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      should_build: ${{ steps.upstream.outputs.should_build }}
+      passwall_luci: ${{ steps.upstream.outputs.passwall_luci }}
+      passwall_packages: ${{ steps.upstream.outputs.passwall_packages }}
+      fingerprint: ${{ steps.upstream.outputs.fingerprint }}
+      source_commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: openwrt-21.02
+      - name: Detect upstream updates
+        id: upstream
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          args=()
+          if [[ "$FORCE" == true ]]; then args+=(--force); fi
+          python3 scripts/ci/passwall-update.py check "${args[@]}"
+      - name: Synchronize pinned PassWall feeds
+        id: source
+        run: |
+          if ! git diff --quiet -- feeds.conf.default; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add feeds.conf.default
+            git commit -m 'build: sync PassWall upstream revisions'
+            git push origin HEAD:openwrt-21.02
+          fi
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Summarize check
+        env:
+          BUILD: ${{ steps.upstream.outputs.should_build }}
+          LUCI: ${{ steps.upstream.outputs.passwall_luci }}
+          PACKAGES: ${{ steps.upstream.outputs.passwall_packages }}
+        run: |
+          {
+            echo '### AX3000T / PassWall'
+            echo "- Build required: $BUILD"
+            echo "- PassWall: $LUCI"
+            echo "- Dependencies: $PACKAGES"
+            echo '- Variants: normal, stock, AN8855, AN8855 stock'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      PASSWALL_LUCI: ${{ needs.check.outputs.passwall_luci }}
+      PASSWALL_PACKAGES: ${{ needs.check.outputs.passwall_packages }}
+      SOURCE_COMMIT: ${{ needs.check.outputs.source_commit }}
+      BUILD_FINGERPRINT: ${{ needs.check.outputs.fingerprint }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.source_commit }}
+          persist-credentials: false
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # Reclaim preinstalled SDKs on this disposable GitHub-hosted runner.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses-dev libssl-dev python3 python3-distutils \
+            python3-setuptools rsync swig unzip zlib1g-dev file wget curl \
+            ca-certificates patch quilt subversion time xsltproc libelf-dev \
+            libtool autoconf automake autopoint gperf help2man texinfo \
+            libgmp-dev libmpc-dev libmpfr-dev device-tree-compiler p7zip-full \
+            pkgconf ccache xxd
+          df -h .
+      - name: Test CI update and firmware validation logic
+        run: python3 -m unittest discover -s scripts/ci/tests -v
+      - name: Restore downloads
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: ax3000t-downloads-v1-${{ needs.check.outputs.fingerprint }}
+          restore-keys: ax3000t-downloads-v1-
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ax3000t-ccache-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ax3000t-ccache-v1-
+      - name: Prepare four AX3000T profiles and compatibility patches
+        run: |
+          sh scripts/setup-ax3000t-passwall.sh 2>&1 | tee setup.log
+          printf '\nCONFIG_CCACHE=y\nCONFIG_CCACHE_DIR="%s/.ccache"\n' "$GITHUB_WORKSPACE" >> .config
+          make defconfig
+          test "$(grep -c '^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_xiaomi_mi-router-ax3000t.*=y$' .config)" -eq 4
+          grep -q '^CONFIG_PACKAGE_luci-app-passwall=y$' .config
+          test "$(git -C feeds/passwall_luci rev-parse HEAD)" = "$PASSWALL_LUCI"
+          test "$(git -C feeds/passwall_packages rev-parse HEAD)" = "$PASSWALL_PACKAGES"
+      - name: Download sources
+        run: make download -j8 2>&1 | tee download.log
+      - name: Build firmware
+        run: |
+          make -j2 V=s 2>&1 | tee build.log
+      - name: Verify and collect all four firmware variants
+        run: python3 scripts/ci/collect-ax3000t.py
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax3000t-passwall-firmware
+          path: firmware/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax3000t-passwall-logs-${{ github.run_attempt }}
+          path: |
+            *.log
+            .config
+            bin/targets/mediatek/mt7981/*.manifest
+            bin/targets/mediatek/mt7981/profiles.json
+            logs/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LUCI: ${{ needs.check.outputs.passwall_luci }}
+      PACKAGES: ${{ needs.check.outputs.passwall_packages }}
+      SOURCE: ${{ needs.check.outputs.source_commit }}
+      FINGERPRINT: ${{ needs.check.outputs.fingerprint }}
+      RELEASE_TAG: ax3000t-passwall-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: openwrt-21.02
+      - uses: actions/download-artifact@v4
+        with:
+          name: ax3000t-passwall-firmware
+          path: firmware
+      - name: Publish firmware release
+        run: |
+          cat > release-notes.md <<EOF
+          AX3000T 四种配置：普通、普通 stock、AN8855、AN8855 stock。
+
+          请按实际交换机型号和分区布局选择固件。stock 与大分区镜像不可混用。
+
+          - PassWall commit: $LUCI
+          - Dependencies commit: $PACKAGES
+          - Source commit: $SOURCE
+          - Build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          Includes package manifests, build configuration and SHA256 checksums.
+          EOF
+          gh release create "$RELEASE_TAG" firmware/* \
+            --repo "$GITHUB_REPOSITORY" --target "$SOURCE" \
+            --title "AX3000T PassWall $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M')" \
+            --notes-file release-notes.md
+      - name: Record successful build
+        run: |
+          git pull --ff-only origin openwrt-21.02
+          python3 scripts/ci/passwall-update.py success \
+            --fingerprint "$FINGERPRINT" --passwall-luci "$LUCI" \
+            --passwall-packages "$PACKAGES" --source-commit "$SOURCE" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --release-tag "$RELEASE_TAG"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/ax3000t-passwall-last-success.json
+          git commit -m 'build: record successful AX3000T PassWall release'
+          git push origin HEAD:openwrt-21.02

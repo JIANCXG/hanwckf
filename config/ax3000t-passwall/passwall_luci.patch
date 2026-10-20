@@ -2,15 +2,6 @@ diff --git a/luci-app-passwall/Makefile b/luci-app-passwall/Makefile
 index 4656b79..497ff64 100644
 --- a/luci-app-passwall/Makefile
 +++ b/luci-app-passwall/Makefile
-@@ -7,7 +7,7 @@
- include $(TOPDIR)/rules.mk
- 
- PKG_NAME:=luci-app-passwall
--PKG_VERSION:=26.10.16
-+PKG_VERSION:=26.10.16-2
- PKG_RELEASE:=2
- PKG_PO_VERSION:=$(PKG_VERSION)
- 
 @@ -46,7 +46,7 @@ config PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy
  	select PACKAGE_ipset
  	select PACKAGE_ipt2socks

@@ -32,6 +32,8 @@ git-src
 .cproject
 .ccache
 .vscode
+__pycache__/
+*.pyc
 
 !/dl/datconf*
 !/dl/mt79*

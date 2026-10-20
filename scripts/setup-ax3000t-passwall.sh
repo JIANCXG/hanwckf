@@ -19,6 +19,7 @@ for feed in packages passwall_luci passwall_packages; do
         git -C "feeds/$feed" apply "$patch"
     fi
 done
+python3 scripts/ci/prepare-passwall-luci.py
 mkdir -p feeds/packages/lang/rust
 cp -R "$COMPAT/rust/." feeds/packages/lang/rust/
 # Remove only conflicting generated links so the new feeds take precedence.
