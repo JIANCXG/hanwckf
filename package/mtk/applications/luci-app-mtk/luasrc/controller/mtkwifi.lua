@@ -985,9 +985,25 @@ function get_station_list()
     http.write("get_station_list")
 end
 
+local function valid_reset_device(devname)
+    if devname == nil then return true end
+    local profiles = mtkwifi.search_dev_and_profile() or {}
+    if type(devname) == "string" and devname:match("^[%w_.-]+$")
+        and profiles[devname] then
+        return true
+    end
+    http.status(400, "Invalid wireless device")
+    return false
+end
+
 function reset_wifi(devname)
+    if not valid_reset_device(devname) then return end
     if devname then
-        os.execute("cp -f /rom/etc/wireless/"..devname.."/ /etc/wireless/")
+        local profile = mtkwifi.search_dev_and_profile()[devname]
+        if not nfs.copy("/rom"..profile, profile) then
+            http.status(500, "Failed to restore wireless profile")
+            return
+        end
     else
         os.execute("cp -rf /rom/etc/wireless /etc/")
     end
@@ -1408,13 +1424,14 @@ end
 
 local exec_reset_to_defaults_cmd = function (devname)
     if devname then
-        os.execute("wifi reset "..devname)
+        nixio.exec("/sbin/wifi", "reset", devname)
     else
-        os.execute("wifi reset")
+        nixio.exec("/sbin/wifi", "reset")
     end
 end
 
 function reset_to_defaults(devname)
+    if not valid_reset_device(devname) then return end
     mtkwifi.__run_in_child_env(exec_reset_to_defaults_cmd, devname)
     luci.http.redirect(luci.dispatcher.build_url("admin", "network", "wifi", "loading",mtkwifi.get_referer_url()))
 end

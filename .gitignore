@@ -17,6 +17,8 @@
 /package/feeds
 /package/openwrt-packages
 /*.patch
+!/config/ax3000t-passwall/*.patch
+!/config/ax3000t-passwall/rust/patches/*.patch
 key-build*
 *.orig
 *.rej

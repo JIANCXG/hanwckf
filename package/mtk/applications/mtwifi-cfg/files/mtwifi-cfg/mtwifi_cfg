@@ -17,6 +17,7 @@
 local cjson = require "cjson"
 local inspect = require "inspect"
 local nixio = require "nixio"
+local fs = require "nixio.fs"
 local l1parser = require "l1dat_parser"
 local datconf = require "datconf"
 local utils = require "mtwifi_utils"
@@ -285,9 +286,31 @@ function mtwifi_reinstall()
 end
 
 function __exec_iwpriv_cmd(ifname, key, val)
-    local cmd = string.format("iwpriv %s set %s=%s", ifname, key, tostring(val))
-    nixio.syslog("info", "mtwifi-cfg: iwpriv cmd: "..cmd)
-    os.execute(cmd)
+    if type(ifname) ~= "string" or #ifname == 0 or #ifname > 15 or ifname:sub(1, 1) == "-"
+        or not ifname:match("^[%w_.-]+$")
+        or (key ~= "KickStaRssiLow" and key ~= "AssocReqRssiThres"
+            and key ~= "ApCliEnable" and key ~= "ApCliAutoConnect") then
+        nixio.syslog("err", "mtwifi-cfg: invalid iwpriv interface or key")
+        return false
+    end
+
+    local value = (type(val) == "number" or type(val) == "string") and tonumber(val)
+    if not value or value ~= math.floor(value) or value < -100 or value > 3
+        or ((key == "KickStaRssiLow" or key == "AssocReqRssiThres") and value > 0)
+        or (key == "ApCliEnable" and value ~= 1)
+        or (key == "ApCliAutoConnect" and value ~= 3) then
+        nixio.syslog("err", "mtwifi-cfg: invalid iwpriv value")
+        return false
+    end
+
+    local pid = nixio.fork()
+    if not pid or pid < 0 then return false end
+    if pid == 0 then
+        nixio.exec("/usr/sbin/iwpriv", ifname, "set", key.."="..tostring(value))
+        os.exit(1)
+    end
+    local waited, reason, status = nixio.waitpid(pid)
+    return waited == pid and reason == "exited" and status == 0
 end
 
 function mtwifi_cfg_iwpriv_hook(cfg)
@@ -349,7 +372,8 @@ end
 function mtwifi_cfg_setup(argv)
     local cfg = cjson.decode(argv)
 
-    utils.log2file("input = " .. inspect(cfg))
+    -- Remove logs left by older versions; they may contain wireless passwords.
+    fs.unlink("/tmp/mtwifi.log")
 
     local devname = cfg.device
     local dev = l1dat.devname_ridx[devname]
@@ -624,7 +648,7 @@ function mtwifi_cfg_setup(argv)
 
     local reinstall_wifidrv = false
     local cfg_diff = diff_cfg(dats_orig, dats)
-    utils.log2file("diff = " .. inspect(cfg_diff))
+    -- Never log the configuration or its diff: both contain wireless keys.
 
     save_profile(dats, profile)
 

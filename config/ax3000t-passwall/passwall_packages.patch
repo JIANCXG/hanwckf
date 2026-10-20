@@ -1,0 +1,30 @@
+diff --git a/shadowsocksr-libev/Makefile b/shadowsocksr-libev/Makefile
+index a8e47cc..54bf00d 100644
+--- a/shadowsocksr-libev/Makefile
++++ b/shadowsocksr-libev/Makefile
+@@ -51,6 +51,12 @@ CONFIGURE_ARGS += \
+ 	--disable-assert \
+ 	--enable-system-shared-lib
+ 
++# The bundled configure script has mode 0644; autoreconf preserves it.
++define Build/Configure
++	chmod +x $(PKG_BUILD_DIR)/configure
++	$(call Build/Configure/Default)
++endef
++
+ TARGET_LDFLAGS += -Wl,--as-needed
+ 
+ $(foreach component,$(SHADOWSOCKSR_COMPONENTS), \
+diff --git a/sing-box/Makefile b/sing-box/Makefile
+index 40944d0..243f781 100644
+--- a/sing-box/Makefile
++++ b/sing-box/Makefile
+@@ -35,6 +35,8 @@ PKG_BUILD_FLAGS:=no-mips16
+ 
+ GO_PKG:=github.com/sagernet/sing-box
+ GO_PKG_BUILD_PKG:=$(GO_PKG)/cmd/sing-box
++# Work around the Go 1.27 generic-list inliner crash in WireGuard.
++GO_PKG_GCFLAGS:=github.com/sagernet/sing-box/transport/wireguard=-l
+ GO_PKG_LDFLAGS_X:=$(GO_PKG)/constant.Version=$(PKG_VERSION)
+ 
+ include $(INCLUDE_DIR)/package.mk

@@ -57,7 +57,6 @@ DEFAULT_PACKAGES.tweak:=\
 	kmod-nf-nathelper \
 	kmod-nf-nathelper-extra \
 	luci \
-	luci-app-filetransfer \
 	luci-compat \
 	luci-lib-base \
 	luci-lib-fs \

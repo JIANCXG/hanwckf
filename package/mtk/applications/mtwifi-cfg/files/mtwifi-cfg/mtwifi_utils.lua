@@ -2,8 +2,6 @@
 
 local mtwifi_utils = {}
 
-local mtwifi_logfile = "/tmp/mtwifi.log"
-
 function mtwifi_utils.esc(x)
     return (x:gsub('%%', '%%%%')
              :gsub('^%^', '%%^')
@@ -85,12 +83,6 @@ end
 function mtwifi_utils.sleep(s)
     local ntime = os.clock() + s
     repeat until os.clock() > ntime
-end
-
-function mtwifi_utils.log2file(str)
-    logfile = io.open(mtwifi_logfile, "a")
-    logfile:write(os.date("%H:%M:%S", os.time()) .. " " .. str .. "\n")
-    logfile:close()
 end
 
 return mtwifi_utils
