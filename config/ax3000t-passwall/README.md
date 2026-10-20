@@ -11,7 +11,7 @@ sh scripts/setup-ax3000t-passwall.sh
 须先自行保存并移走，避免覆盖。再次更新 feeds 后也应重新运行本脚本。
 
 PassWall 和代理核心版本以 `feeds.conf.default` 及每次发布的 `build-info.json` 为准；启用中文、iptables、
-SSR 客户端、HAProxy、Simple-Obfs、V2Ray-Plugin 等，取消 filetransfer。
+SSR 客户端、HAProxy、Simple-Obfs、V2Ray-Plugin、UPnP（miniupnpd 和中文管理界面）等，取消 filetransfer。
 配置同时选择普通/AN8855、stock/大分区四种设备配置，刷机必须匹配实际硬件和分区。
 stock 配置按本仓库 DTS/升级脚本将内核放在 34 MiB 的 `ubi_kernel`、rootfs 放在
 78 MiB 的 `ubi`，普通配置共用 112 MiB 的 `ubi`。云编译按对应布局校验镜像、

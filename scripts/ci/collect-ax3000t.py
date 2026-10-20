@@ -65,8 +65,9 @@ for device in devices:
         if len(manifests) != 1:
             raise SystemExit(f'Cannot identify package manifest for {device}')
         manifest = manifests[0]
-    if 'luci-app-passwall - ' not in manifest.read_text():
-        raise SystemExit(f'PassWall missing from {device}')
+    for package in ('luci-app-passwall', 'luci-app-upnp', 'luci-i18n-upnp-zh-cn', 'miniupnpd'):
+        if f'{package} - ' not in manifest.read_text():
+            raise SystemExit(f'{package} missing from {device}')
     for item in profile['images']:
         source = images / item['name']
         if not source.is_file():

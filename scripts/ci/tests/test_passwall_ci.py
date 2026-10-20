@@ -96,7 +96,9 @@ class CollectorTests(unittest.TestCase):
             if device == omitted:
                 path.unlink()
         # Exercise the old build system's shared multi-profile manifest.
-        (images / 'immortalwrt-mediatek-mt7981.manifest').write_text('luci-app-passwall - 26.10.16-2\n')
+        (images / 'immortalwrt-mediatek-mt7981.manifest').write_text(
+            'luci-app-passwall - 26.10.16-2\nluci-app-upnp - 1\n'
+            'luci-i18n-upnp-zh-cn - 1\nminiupnpd - 1\n')
         (images / 'profiles.json').write_text(json.dumps({'profiles': profiles}))
         return script
 

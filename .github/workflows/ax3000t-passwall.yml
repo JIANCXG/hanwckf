@@ -132,6 +132,8 @@ jobs:
           make defconfig
           test "$(grep -c '^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_xiaomi_mi-router-ax3000t.*=y$' .config)" -eq 4
           grep -q '^CONFIG_PACKAGE_luci-app-passwall=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-upnp=y$' .config
+          grep -q '^CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y$' .config
           test "$(git -C feeds/passwall_luci rev-parse HEAD)" = "$PASSWALL_LUCI"
           test "$(git -C feeds/passwall_packages rev-parse HEAD)" = "$PASSWALL_PACKAGES"
       - name: Download sources
