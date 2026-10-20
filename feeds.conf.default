@@ -1,4 +1,4 @@
-src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git^a6e290333b392671678781d1a629d22c6510b6fd
+src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git^9fcf82676e929656097b5f478c9593d5ca65dbae
 src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall.git^93669b0072c2cd55727dcf4c69aa3ac5603dff74
 src-git packages https://github.com/immortalwrt/packages.git^e09f3c7d1903cfe7f523e209ab3ec778013ba309
 src-git luci https://github.com/immortalwrt/luci.git^5829eabba50ec0afa17d2ee486bc90dc15180c34
