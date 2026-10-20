@@ -1,0 +1,8 @@
+{
+  "fingerprint": "09b4c5ea19230050cc9a3e64972a4aa3072b20d08429cd41a41056c21ecbd01b",
+  "passwall_luci": "ae258e4da46aa34567230f55e401ced4cb7738ad",
+  "passwall_packages": "6edb7efcf3a9505128824ea47c1c058151e290af",
+  "source_commit": "2a7dd5fafb38e3e6d7c538ae2e47866fe54bc642",
+  "run_url": "https://github.com/JIANCXG/hanwckf/actions/runs/39411159751",
+  "release_tag": "ax3000t-passwall-39411159751-1"
+}
