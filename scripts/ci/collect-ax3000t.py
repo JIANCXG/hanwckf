@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import tarfile
 
@@ -39,6 +40,11 @@ devices = (
     'xiaomi_mi-router-ax3000t-an8855-stock',
 )
 profiles = json.loads((images / 'profiles.json').read_text())['profiles']
+dnsmasq_recipe = (root / 'package/network/services/dnsmasq/Makefile').read_text()
+dnsmasq_version = re.search(r'^PKG_UPSTREAM_VERSION:=(\S+)$', dnsmasq_recipe, re.M).group(1)
+dnsmasq_release = re.search(r'^PKG_RELEASE:=(\d+)$', dnsmasq_recipe, re.M).group(1)
+# The 21.02 package version format is <version>-<release>, without the newer r prefix.
+expected_dnsmasq = f'{dnsmasq_version}-{dnsmasq_release}'
 collected = []
 for device in devices:
     profile = profiles[device]
@@ -68,6 +74,10 @@ for device in devices:
     for package in ('luci-app-passwall', 'luci-app-upnp', 'luci-i18n-upnp-zh-cn', 'miniupnpd'):
         if f'{package} - ' not in manifest.read_text():
             raise SystemExit(f'{package} missing from {device}')
+    packages = dict(line.split(' - ', 1) for line in manifest.read_text().splitlines() if ' - ' in line)
+    if packages.get('dnsmasq-full') != expected_dnsmasq:
+        raise SystemExit(f'dnsmasq-full version mismatch for {device}: expected {expected_dnsmasq}, '
+                         f"found {packages.get('dnsmasq-full', '<missing>')}")
     for item in profile['images']:
         source = images / item['name']
         if not source.is_file():

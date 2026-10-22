@@ -18,6 +18,7 @@ on:
       - 'scripts/setup-ax3000t-passwall.sh'
       - 'config/ax3000t-passwall/**'
       - 'feeds.conf.default'
+      - 'package/network/services/dnsmasq/**'
 
 permissions:
   contents: read
@@ -116,6 +117,24 @@ jobs:
           df -h .
       - name: Test CI update and firmware validation logic
         run: python3 -m unittest discover -s scripts/ci/tests -v
+      - name: Verify Dnsmasq patches and legacy configuration options
+        run: |
+          recipe=package/network/services/dnsmasq/Makefile
+          version=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' "$recipe")
+          hash=$(sed -n 's/^PKG_HASH:=//p' "$recipe")
+          scratch=$(mktemp -d)
+          archive="$scratch/dnsmasq-$version.tar.xz"
+          curl --fail --location --retry 3 "https://thekelleys.org.uk/dnsmasq/dnsmasq-$version.tar.xz" -o "$archive"
+          printf '%s  %s\n' "$hash" "$archive" | sha256sum --check
+          tar -xJf "$archive" -C "$scratch"
+          source="$scratch/dnsmasq-$version"
+          for diff in "$GITHUB_WORKSPACE"/package/network/services/dnsmasq/patches/*.patch; do
+            (cd "$source" && patch -p1 --fuzz=0 < "$diff")
+          done
+          make -C "$source" -j2
+          "$source/src/dnsmasq" --version | head -n 1 | grep -F "version $version"
+          "$source/src/dnsmasq" --test --conf-file=/dev/null --min-ttl=60 --filter-aaaa
+          "$source/src/dnsmasq" --test --conf-file=/dev/null --filter-AAAA
       - name: Restore downloads
         uses: actions/cache@v4
         with:

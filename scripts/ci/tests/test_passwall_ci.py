@@ -122,6 +122,9 @@ class CollectorTests(unittest.TestCase):
         script.parent.mkdir(parents=True)
         shutil.copyfile(CI / script.name, script)
         (root / '.config').write_text('CONFIG_PACKAGE_luci-app-passwall=y\n')
+        recipe = root / 'package/network/services/dnsmasq/Makefile'
+        recipe.parent.mkdir(parents=True)
+        recipe.write_text('PKG_UPSTREAM_VERSION:=2.93\nPKG_RELEASE:=1\n')
         images = root / 'bin/targets/mediatek/mt7981'
         images.mkdir(parents=True)
         profiles = {}
@@ -140,7 +143,7 @@ class CollectorTests(unittest.TestCase):
         # Exercise the old build system's shared multi-profile manifest.
         (images / 'immortalwrt-mediatek-mt7981.manifest').write_text(
             'luci-app-passwall - 26.10.16-2\nluci-app-upnp - 1\n'
-            'luci-i18n-upnp-zh-cn - 1\nminiupnpd - 1\n')
+            'luci-i18n-upnp-zh-cn - 1\nminiupnpd - 1\ndnsmasq-full - 2.93-1\n')
         (images / 'profiles.json').write_text(json.dumps({'profiles': profiles}))
         return script
 
@@ -168,6 +171,17 @@ class CollectorTests(unittest.TestCase):
             result = self.run_collector(self.fixture(Path(directory), stock_root_size=78 * 1024 * 1024))
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('exceeds partition capacity', result.stderr)
+
+    def test_old_or_missing_dnsmasq_blocks_release(self):
+        for entry in ('dnsmasq-full - 2.85-1\n', ''):
+            with self.subTest(entry=entry), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                script = self.fixture(root)
+                manifest = root / 'bin/targets/mediatek/mt7981/immortalwrt-mediatek-mt7981.manifest'
+                manifest.write_text(manifest.read_text().replace('dnsmasq-full - 2.93-1\n', entry))
+                result = self.run_collector(script)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('dnsmasq-full version mismatch', result.stderr)
 
 
 class CompatibilityTests(unittest.TestCase):
