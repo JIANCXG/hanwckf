@@ -2,7 +2,8 @@ name: AX3000T PassWall Auto Build
 
 on:
   schedule:
-    - cron: '17,47 * * * *'
+    # Wake hourly; the persisted timestamp allows upstream checks only after 72 hours.
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       force:
@@ -51,18 +52,20 @@ jobs:
         id: upstream
         env:
           FORCE: ${{ inputs.force || false }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           args=()
           if [[ "$FORCE" == true ]]; then args+=(--force); fi
+          if [[ "$EVENT_NAME" == schedule ]]; then args+=(--scheduled); fi
           python3 scripts/ci/passwall-update.py check "${args[@]}"
       - name: Synchronize pinned PassWall feeds
         id: source
         run: |
-          if ! git diff --quiet -- feeds.conf.default; then
+          git add feeds.conf.default .github/ax3000t-passwall-last-check.json
+          if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add feeds.conf.default
-            git commit -m 'build: sync PassWall upstream revisions'
+            git commit -m 'build: record PassWall check and sync upstream revisions'
             git push origin HEAD:openwrt-21.02
           fi
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

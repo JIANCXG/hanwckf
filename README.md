@@ -10,6 +10,12 @@ Default login address: http://192.168.1.1 or http://immortalwrt.lan, username: _
 ## About immortalwrt-mt798x 
 - https://cmi.hanwckf.top/p/immortalwrt-mt798x/
 
+## AX3000T PassWall 自动检查
+
+GitHub Actions 每隔至少 **72 小时**检查 PassWall 及配套依赖上游，发现变化后自动编译四种 AX3000T 固件并发布到 Releases。工作流每小时第 17 分钟唤醒，距离上次成功检查不足 72 小时会直接跳过，不查询上游；实际检查时间可能受 GitHub 调度延迟影响。检查时间保存在 `.github/ax3000t-passwall-last-check.json`，跨月仍按经过的小时计算。
+
+无更新时只记录检查时间，不重新编译；上游检查失败不推进时间，下次唤醒时重试。手动运行及相关源码推送可立即检查，手动勾选 `force` 可强制重新编译。成功发布记录独立保存，检查时间变化不会触发重复编译。
+
 ## Development
 To build your own firmware you need a GNU/Linux, BSD or MacOSX system (case sensitive filesystem required). Cygwin is unsupported because of the lack of a case sensitive file system.<br/>
 

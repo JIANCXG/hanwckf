@@ -1,4 +1,5 @@
 import contextlib
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import io
@@ -65,13 +66,54 @@ class UpdateTests(unittest.TestCase):
 
     def test_state_and_pin_commits_do_not_change_fingerprint(self):
         lines = ['100644 blob aaa\tfile.c', '100644 blob bbb\tfeeds.conf.default',
-                 '100644 blob ccc\t.github/ax3000t-passwall-last-success.json']
+                 '100644 blob ccc\t.github/ax3000t-passwall-last-success.json',
+                 '100644 blob fff\t.github/ax3000t-passwall-last-check.json']
         with patch.object(updater, 'git', return_value='\n'.join(lines)):
             first = updater.fingerprint('effective feeds\n')
         lines[1] = '100644 blob ddd\tfeeds.conf.default'
         lines[2] = '100644 blob eee\t.github/ax3000t-passwall-last-success.json'
+        lines[3] = '100644 blob 999\t.github/ax3000t-passwall-last-check.json'
         with patch.object(updater, 'git', return_value='\n'.join(lines)):
             self.assertEqual(first, updater.fingerprint('effective feeds\n'))
+
+    def test_72_hour_gate_and_manual_bypass(self):
+        now = datetime(2026, 11, 1, 4, 17, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / '.github').mkdir()
+            clock = root / updater.CHECK_STATE
+            feeds = ''.join(f'src-git {name} {url}^' + 'a' * 40 + '\n'
+                            for name, url in updater.FEEDS.items())
+            (root / 'feeds.conf.default').write_text(feeds)
+            for elapsed, scheduled, force, expected in (
+                    (71, True, False, False), (72, True, False, True),
+                    (1, False, False, True), (1, True, True, True)):
+                clock.write_text(json.dumps({'checked_at': (now-timedelta(hours=elapsed)).isoformat()}))
+                with patch.object(updater, 'ROOT', root), \
+                        patch.object(updater, 'STATE', root / '.github/success.json'), \
+                        patch.object(updater, 'git', return_value='a'*40+'\tHEAD') as git_mock, \
+                        patch.object(updater, 'fingerprint', return_value='b'*64), \
+                        patch.object(updater, 'output') as out:
+                    updater.check(force=force, scheduled=scheduled, now=now)
+                    self.assertEqual(git_mock.call_count, 2 if expected else 0)
+                    self.assertEqual(out.call_args.args[0]['checked'], str(expected).lower())
+                    if expected:
+                        self.assertEqual(json.loads(clock.read_text())['checked_at'], now.isoformat(timespec='seconds'))
+
+    def test_failed_query_keeps_check_time_and_feeds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / '.github').mkdir()
+            clock = root / updater.CHECK_STATE
+            clock.write_text('{"checked_at": "2026-10-01T00:00:00+00:00"}\n')
+            (root / 'feeds.conf.default').write_text('original feeds\n')
+            before = clock.read_bytes()
+            with patch.object(updater, 'ROOT', root), \
+                    patch.object(updater, 'git', side_effect=['a'*40+'\tHEAD', RuntimeError('offline')]):
+                with self.assertRaises(RuntimeError):
+                    updater.check(scheduled=True)
+            self.assertEqual(clock.read_bytes(), before)
+            self.assertEqual((root / 'feeds.conf.default').read_text(), 'original feeds\n')
 
 
 class CollectorTests(unittest.TestCase):
