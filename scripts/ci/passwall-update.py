@@ -15,7 +15,13 @@ CHECK_STATE = '.github/ax3000t-passwall-last-check.json'
 FEEDS = {
     'passwall_luci': 'https://github.com/Openwrt-Passwall/openwrt-passwall.git',
     'passwall_packages': 'https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git',
+    'packages': 'https://github.com/immortalwrt/packages.git',
+    'luci': 'https://github.com/immortalwrt/luci.git',
+    'routing': 'https://github.com/openwrt/routing.git',
+    'telephony': 'https://github.com/openwrt/telephony.git',
 }
+BRANCHES = {name: ('main' if name.startswith('passwall_') else 'openwrt-21.02')
+            for name in FEEDS}
 
 
 def git(*args):
@@ -27,7 +33,7 @@ def pin_feeds(text, revisions):
         sha = revisions[name]
         if not re.fullmatch(r'[0-9a-f]{40}', sha):
             raise ValueError(f'Invalid upstream revision for {name}')
-        pattern = rf'^src-git\s+{name}\s+{re.escape(url)}(?:[;^][^\s]+)?\s*$'
+        pattern = rf'^src-git[ \t]+{name}[ \t]+{re.escape(url)}(?:[;^][^\s]+)?[ \t]*$'
         text, count = re.subn(pattern, f'src-git {name} {url}^{sha}', text, flags=re.M)
         if count != 1:
             raise ValueError(f'Expected exactly one {name} feed, found {count}')
@@ -61,9 +67,10 @@ def check(force=False, scheduled=False, now=None):
             return
     revisions = {}
     for name, url in FEEDS.items():
-        lines = git('ls-remote', '--exit-code', url, 'HEAD').splitlines()
+        ref = f'refs/heads/{BRANCHES[name]}'
+        lines = git('ls-remote', '--exit-code', url, ref).splitlines()
         if len(lines) != 1:
-            raise ValueError(f'Could not resolve upstream HEAD for {name}')
+            raise ValueError(f'Could not resolve {ref} for {name}')
         revisions[name] = lines[0].split()[0]
     path = ROOT / 'feeds.conf.default'
     original = path.read_text(encoding='utf-8')

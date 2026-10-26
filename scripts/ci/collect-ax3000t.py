@@ -29,6 +29,23 @@ def check_capacity(device, payload):
         raise SystemExit(f'{device}: firmware exceeds partition capacity; refusing release')
 
 
+def expected_package_version(recipe, luci=False):
+    """Fail closed if upstream changes the literal version recipe we support."""
+    text = recipe.read_text(encoding='utf-8')
+    versions = re.findall(r'^PKG_VERSION:=(.+)$', text, re.M)
+    releases = re.findall(r'^PKG_RELEASE:=(.+)$', text, re.M)
+    if (len(releases) != 1 or not re.fullmatch(r'[0-9A-Za-z.+~_-]+', releases[0])
+            or not versions or not re.fullmatch(r'[0-9A-Za-z.+~_-]+', versions[0])):
+        raise SystemExit(f'Unsupported package version declaration: {recipe}')
+    # The 21.02 luci.mk uses PKG_VERSION directly. Our compatibility script
+    # appends PKG_RELEASE once; ordinary packages get it from package-defaults.mk.
+    expected_assignments = ([versions[0], '$(PKG_VERSION)-$(PKG_RELEASE)']
+                            if luci else [versions[0]])
+    if versions != expected_assignments:
+        raise SystemExit(f'Unexpected package version assignments: {recipe}')
+    return f'{versions[0]}-{releases[0]}'
+
+
 root = Path(__file__).resolve().parents[2]
 images = root / 'bin/targets/mediatek/mt7981'
 destination = root / 'firmware'
@@ -45,6 +62,13 @@ dnsmasq_version = re.search(r'^PKG_UPSTREAM_VERSION:=(\S+)$', dnsmasq_recipe, re
 dnsmasq_release = re.search(r'^PKG_RELEASE:=(\d+)$', dnsmasq_recipe, re.M).group(1)
 # The 21.02 package version format is <version>-<release>, without the newer r prefix.
 expected_dnsmasq = f'{dnsmasq_version}-{dnsmasq_release}'
+expected_versions = {
+    'dnsmasq-full': expected_dnsmasq,
+    'luci-app-passwall': expected_package_version(
+        root / 'feeds/passwall_luci/luci-app-passwall/Makefile', luci=True),
+    **{name: expected_package_version(root / 'feeds/passwall_packages' / name / 'Makefile')
+       for name in ('xray-core', 'sing-box')},
+}
 collected = []
 for device in devices:
     profile = profiles[device]
@@ -71,13 +95,14 @@ for device in devices:
         if len(manifests) != 1:
             raise SystemExit(f'Cannot identify package manifest for {device}')
         manifest = manifests[0]
-    for package in ('luci-app-passwall', 'luci-app-upnp', 'luci-i18n-upnp-zh-cn', 'miniupnpd'):
-        if f'{package} - ' not in manifest.read_text():
-            raise SystemExit(f'{package} missing from {device}')
     packages = dict(line.split(' - ', 1) for line in manifest.read_text().splitlines() if ' - ' in line)
-    if packages.get('dnsmasq-full') != expected_dnsmasq:
-        raise SystemExit(f'dnsmasq-full version mismatch for {device}: expected {expected_dnsmasq}, '
-                         f"found {packages.get('dnsmasq-full', '<missing>')}")
+    for package in ('luci-app-upnp', 'luci-i18n-upnp-zh-cn', 'miniupnpd'):
+        if package not in packages:
+            raise SystemExit(f'{package} missing from {device}')
+    for package, expected in expected_versions.items():
+        if packages.get(package) != expected:
+            raise SystemExit(f'{package} version mismatch for {device}: expected {expected}, '
+                             f"found {packages.get(package, '<missing>')}")
     for item in profile['images']:
         source = images / item['name']
         if not source.is_file():

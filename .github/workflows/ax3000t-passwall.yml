@@ -59,14 +59,14 @@ jobs:
           if [[ "$FORCE" == true ]]; then args+=(--force); fi
           if [[ "$EVENT_NAME" == schedule ]]; then args+=(--scheduled); fi
           python3 scripts/ci/passwall-update.py check "${args[@]}"
-      - name: Synchronize pinned PassWall feeds
+      - name: Synchronize all pinned firmware feeds
         id: source
         run: |
           git add feeds.conf.default .github/ax3000t-passwall-last-check.json
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'build: record PassWall check and sync upstream revisions'
+            git commit -m 'build: record feed check and sync upstream revisions'
             git push origin HEAD:openwrt-21.02
           fi
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -153,7 +153,9 @@ jobs:
           printf '\nCONFIG_CCACHE=y\nCONFIG_CCACHE_DIR="%s/.ccache"\n' "$GITHUB_WORKSPACE" >> .config
           make defconfig
           test "$(grep -c '^CONFIG_TARGET_DEVICE_mediatek_mt7981_DEVICE_xiaomi_mi-router-ax3000t.*=y$' .config)" -eq 4
-          grep -q '^CONFIG_PACKAGE_luci-app-passwall=y$' .config
+          for package in luci-app-passwall xray-core sing-box; do
+            grep -qx "CONFIG_PACKAGE_${package}=y" .config || { echo "Missing required package: $package"; exit 1; }
+          done
           grep -q '^CONFIG_PACKAGE_luci-app-upnp=y$' .config
           grep -q '^CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y$' .config
           test "$(git -C feeds/passwall_luci rev-parse HEAD)" = "$PASSWALL_LUCI"
