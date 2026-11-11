@@ -1,8 +1,8 @@
 {
-  "fingerprint": "864e1bf0929f9418390df5d3fdaa8159459d79523953ee4d7c649b9e4254cb26",
-  "passwall_luci": "82678e8e054b274d487780fdf5d24ddb7db5b85b",
-  "passwall_packages": "da712cf06cf4e6fd39e147fb36e6ec936003fcc9",
-  "source_commit": "d8daf4cee743c6f8238eabdcdffda7670570ed04",
-  "run_url": "https://github.com/JIANCXG/hanwckf/actions/runs/42413411620",
-  "release_tag": "ax3000t-passwall-42413411620-1"
+  "fingerprint": "1f138c7edd0075860d94b9602245112625bff41b963f2d97476bf38336975ba5",
+  "passwall_luci": "5f03390adf4561c2375def4b5406645ecf3f96a9",
+  "passwall_packages": "4dad9be70a37343ad3ef88cd3722576e8e234edf",
+  "source_commit": "ef01579a21b8f2ffa2dca6ff7de836d7e3d9558e",
+  "run_url": "https://github.com/JIANCXG/hanwckf/actions/runs/42923357423",
+  "release_tag": "ax3000t-passwall-42923357423-1"
 }
